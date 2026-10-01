@@ -13,6 +13,10 @@
 
 // In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
 
+// In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
+
+// In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
+
 #import <AppKit/AppKit.h>
 #import <dispatch/dispatch.h>
 
@@ -24,6 +28,8 @@ namespace {
 
 id gRawTrackpadMonitorToken = nil;
 std::atomic<bool> gRawTrackpadStartRequested{false};
+NSPoint gRightMouseDownPos = NSZeroPoint;
+BOOL gIsRightMouseDragging = NO;
 
 }  // namespace
 
@@ -41,8 +47,10 @@ void StartRawTrackpadMonitor() {
 
         const NSEventMask mask =
             NSEventMaskScrollWheel |
+            NSEventMaskRightMouseDown |
             NSEventMaskRightMouseDragged |
             NSEventMaskRightMouseUp;
+
         gRawTrackpadMonitorToken = [NSEvent
             addLocalMonitorForEventsMatchingMask:mask
                                         handler:^NSEvent *(NSEvent *event) {
@@ -56,14 +64,30 @@ void StartRawTrackpadMonitor() {
                         static_cast<unsigned long>(event.momentumPhase));
                 }
                 break;
-            case NSEventTypeRightMouseDragged:
-                // Forward both deltaX and deltaY to enable full 2D camera movement on right-click
-                bg3cam::MouseMiddleDragged(
-                    static_cast<double>(event.deltaX),
-                    static_cast<double>(event.deltaY));
+            case NSEventTypeRightMouseDown:
+                gRightMouseDownPos = [event locationInWindow];
+                gIsRightMouseDragging = NO;
                 break;
+            case NSEventTypeRightMouseDragged: {
+                NSPoint currentPos = [event locationInWindow];
+                CGFloat dx = currentPos.x - gRightMouseDownPos.x;
+                CGFloat dy = currentPos.y - gRightMouseDownPos.y;
+                // Threshold to differentiate a simple click from a drag/rotation
+                if (!gIsRightMouseDragging && (hypot(dx, dy) > 3.0)) {
+                    gIsRightMouseDragging = YES;
+                }
+                if (gIsRightMouseDragging) {
+                    bg3cam::MouseMiddleDragged(
+                        static_cast<double>(event.deltaX),
+                        static_cast<double>(event.deltaY));
+                }
+                break;
+            }
             case NSEventTypeRightMouseUp:
-                bg3cam::MouseMiddleUp();
+                if (gIsRightMouseDragging) {
+                    bg3cam::MouseMiddleUp();
+                    gIsRightMouseDragging = NO;
+                }
                 break;
             default:
                 break;
