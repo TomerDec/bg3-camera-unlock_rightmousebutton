@@ -3720,10 +3720,19 @@ void RawTrackpadScroll(
 // buttonNumber == 2. Only the vertical delta is taken; horizontal is left to
 // BG3's native 98/109/110 mouse yaw. The sensitivity is applied later in the
 // pitch getter.
+// Called from the NSEvent monitor (main thread) for middle-drag / right-drag.
 void MouseMiddleDragged(double deltaX, double deltaY) {
     if (!gHooksEnabled.load(std::memory_order_acquire)) {
         return;
     }
+
+    // Feed horizontal delta (deltaX) into the camera rotation action
+    if (std::isfinite(deltaX) && deltaX != 0.0) {
+        const double scaledX = deltaX * kRawScrollToActionScale * GetCameraConfig().trackpadHorizontalSensitivity;
+        RawTrackpadPushScaledX(scaledX);
+    }
+
+    // Feed vertical delta (deltaY) into pitch
     const bool fed = std::isfinite(deltaY) && deltaY != 0.0;
     if (fed) {
         const float sample = static_cast<float>(deltaY);
@@ -3775,8 +3784,7 @@ void MouseMiddleDragged(double deltaX, double deltaY) {
             deltaX,
             deltaY,
             fed ? deltaY : 0.0,
-            static_cast<double>(
-                GetCameraConfig().mouseVerticalSensitivity),
+            static_cast<double>(GetCameraConfig().mouseVerticalSensitivity),
             fed ? "drag" : "drag-zeroY");
     }
 }
