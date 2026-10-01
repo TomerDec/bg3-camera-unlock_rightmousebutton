@@ -11,6 +11,8 @@
 
 // In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
 
+// In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
+
 #import <AppKit/AppKit.h>
 #import <dispatch/dispatch.h>
 
