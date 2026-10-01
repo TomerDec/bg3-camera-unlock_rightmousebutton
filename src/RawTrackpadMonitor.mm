@@ -2,9 +2,8 @@
 //
 // This is the only Objective-C++ translation unit in the injected library. It
 // forwards every precise-scroll event (delta X and Y, phase, momentum phase)
-// to bg3cam::RawTrackpadScroll, and middle-button drag / up events to
-// bg3cam::MouseMiddleDragged / MouseMiddleUp. All scaling, the gesture
-// lifecycle, the axis lock and the telemetry live in CameraHooks.cpp.
+// to bg3cam::RawTrackpadScroll, and right-button drag / up events (mapped 
+// to middle-button handlers) to bg3cam::MouseMiddleDragged / MouseMiddleUp.
 
 #import <AppKit/AppKit.h>
 #import <dispatch/dispatch.h>
@@ -15,7 +14,11 @@
 
 namespace {
 
+// Strong reference to the opaque monitor object AppKit hands back. Touched
+// only on the main thread.
 id gRawTrackpadMonitorToken = nil;
+
+// Guards against a second Start / a Stop that races an un-run Start.
 std::atomic<bool> gRawTrackpadStartRequested{false};
 
 }  // namespace
@@ -27,20 +30,21 @@ void StartRawTrackpadMonitor() {
         return;
     }
 
+    // addLocalMonitorForEventsMatchingMask: must run on the main thread.
     dispatch_async(dispatch_get_main_queue(), ^{
         if (gRawTrackpadMonitorToken != nil) {
             return;
         }
 
-        // 1. Update the mask to include Right Mouse Dragged and Up events
         const NSEventMask mask =
             NSEventMaskScrollWheel |
             NSEventMaskRightMouseDragged |
             NSEventMaskRightMouseUp;
-            
         gRawTrackpadMonitorToken = [NSEvent
             addLocalMonitorForEventsMatchingMask:mask
                                         handler:^NSEvent *(NSEvent *event) {
+            // The event is never modified and is always returned so UI
+            // interaction and BG3's own handling remain untouched.
             switch (event.type) {
             case NSEventTypeScrollWheel:
                 if (event.hasPreciseScrollingDeltas) {
@@ -51,20 +55,13 @@ void StartRawTrackpadMonitor() {
                         static_cast<unsigned long>(event.momentumPhase));
                 }
                 break;
-            // 2. Change from OtherMouseDragged (Middle) to RightMouseDragged (Right)
             case NSEventTypeRightMouseDragged:
-                // Right mouse button number is 1 in AppKit
-                if (event.buttonNumber == 1) {
-                    bg3cam::MouseMiddleDragged(
-                        static_cast<double>(event.deltaX),
-                        static_cast<double>(event.deltaY));
-                }
+                bg3cam::MouseMiddleDragged(
+                    static_cast<double>(event.deltaX),
+                    static_cast<double>(event.deltaY));
                 break;
-            // 3. Change from OtherMouseUp to RightMouseUp
             case NSEventTypeRightMouseUp:
-                if (event.buttonNumber == 1) {
-                    bg3cam::MouseMiddleUp();
-                }
+                bg3cam::MouseMiddleUp();
                 break;
             default:
                 break;
