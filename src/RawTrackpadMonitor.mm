@@ -5,6 +5,8 @@
 // to bg3cam::RawTrackpadScroll, and right-button drag / up events (mapped 
 // to middle-button handlers) to bg3cam::MouseMiddleDragged / MouseMiddleUp.
 
+// In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
+
 #import <AppKit/AppKit.h>
 #import <dispatch/dispatch.h>
 
@@ -14,11 +16,7 @@
 
 namespace {
 
-// Strong reference to the opaque monitor object AppKit hands back. Touched
-// only on the main thread.
 id gRawTrackpadMonitorToken = nil;
-
-// Guards against a second Start / a Stop that races an un-run Start.
 std::atomic<bool> gRawTrackpadStartRequested{false};
 
 }  // namespace
@@ -30,7 +28,6 @@ void StartRawTrackpadMonitor() {
         return;
     }
 
-    // addLocalMonitorForEventsMatchingMask: must run on the main thread.
     dispatch_async(dispatch_get_main_queue(), ^{
         if (gRawTrackpadMonitorToken != nil) {
             return;
@@ -43,8 +40,6 @@ void StartRawTrackpadMonitor() {
         gRawTrackpadMonitorToken = [NSEvent
             addLocalMonitorForEventsMatchingMask:mask
                                         handler:^NSEvent *(NSEvent *event) {
-            // The event is never modified and is always returned so UI
-            // interaction and BG3's own handling remain untouched.
             switch (event.type) {
             case NSEventTypeScrollWheel:
                 if (event.hasPreciseScrollingDeltas) {
@@ -56,6 +51,7 @@ void StartRawTrackpadMonitor() {
                 }
                 break;
             case NSEventTypeRightMouseDragged:
+                // Pass both deltaX and deltaY so horizontal and vertical look both work
                 bg3cam::MouseMiddleDragged(
                     static_cast<double>(event.deltaX),
                     static_cast<double>(event.deltaY));
