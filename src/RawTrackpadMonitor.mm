@@ -7,6 +7,10 @@
 
 // In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
 
+// In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
+
+// In-process macOS scroll / mouse event monitor. See RawTrackpadMonitor.hpp.
+
 #import <AppKit/AppKit.h>
 #import <dispatch/dispatch.h>
 
@@ -51,7 +55,7 @@ void StartRawTrackpadMonitor() {
                 }
                 break;
             case NSEventTypeRightMouseDragged:
-                // Pass both deltaX and deltaY so horizontal and vertical look both work
+                // Forward both deltaX and deltaY to enable full 2D camera movement on right-click
                 bg3cam::MouseMiddleDragged(
                     static_cast<double>(event.deltaX),
                     static_cast<double>(event.deltaY));
